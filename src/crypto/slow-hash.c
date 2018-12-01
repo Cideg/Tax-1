@@ -2,6 +2,7 @@
 // Copyright (c) 2014-2018, The Monero Project
 // Copyright (c) 2014-2018, The Aeon Project
 // Copyright (c) 2018, The TurtleCoin Developers
+// Copyright (c) 2018, The Tax Developers
 //
 // Please see the included LICENSE file for more information.
 
@@ -263,9 +264,16 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
 #define post_aes() \
   VARIANT2_SHUFFLE_ADD_SSE2(hp_state, j); \
   _mm_store_si128(R128(c), _c); \
-  _mm_store_si128(R128(&hp_state[j]), _mm_xor_si128(_b, _c)); \
+  _mm_store_si128(R128(c1), _mm_load_si128(R128(&hp_state[j]))); \
   VARIANT1_1(&hp_state[j]); \
   j = state_index(c,lightFlag); \
+  c[0] ^= b[0]; c[1] ^= b[1];\
+  _mm_store_si128(R128(&hp_state[j]), _mm_load_si128(c)); \
+  j = state_index(c,lightFlag); \
+  _mm_store_si128(R128(&hp_state[j]), _mm_load_si128(c1));\
+  c1[0] ^= c[0]; c1[1] ^= c[1]; \
+  j = state_index(c1,lightFlag); \
+  _mm_store_si128(R128(&hp_state[j]), _mm_load_si128(c1));\
   p = U64(&hp_state[j]); \
   b[0] = p[0]; b[1] = p[1]; \
   VARIANT2_INTEGER_MATH_SSE2(b, c); \
@@ -278,7 +286,7 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
   a[0] ^= b[0]; a[1] ^= b[1]; \
   VARIANT1_2(p + 1); \
   _b1 = _b; \
-  _b = _c; \
+_b = _c; \
 
 #if defined(_MSC_VER)
 #define THREADV __declspec(thread)
@@ -677,6 +685,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
   RDATA_ALIGN16 uint64_t a[2];
   RDATA_ALIGN16 uint64_t b[4];
   RDATA_ALIGN16 uint64_t c[2];
+  RDATA_ALIGN16 uint64_t c1[2];
   union cn_slow_hash_state state;
   __m128i _a, _b, _b1, _c;
   uint64_t hi, lo;
@@ -865,17 +874,24 @@ union cn_slow_hash_state
   _a = vld1q_u8((const uint8_t *)a); \
 
 #define post_aes() \
-  VARIANT2_SHUFFLE_ADD_NEON(hp_state, j); \
-  vst1q_u8((uint8_t *)c, _c); \
-  vst1q_u8(&hp_state[j], veorq_u8(_b, _c)); \
+  VARIANT2_SHUFFLE_ADD_SSE2(hp_state, j); \
+  _mm_store_si128(R128(c), _c); \
+  _mm_store_si128(R128(c1), _mm_load_si128(R128(&hp_state[j]))); \
   VARIANT1_1(&hp_state[j]); \
   j = state_index(c,lightFlag); \
+  c[0] ^= b[0]; c[1] ^= b[1];\
+  _mm_store_si128(R128(&hp_state[j]), _mm_load_si128(c)); \
+  j = state_index(c,lightFlag); \
+  _mm_store_si128(R128(&hp_state[j]), _mm_load_si128(c1));\
+  c1[0] ^= c[0]; c1[1] ^= c[1]; \
+  j = state_index(c1,lightFlag); \
+  _mm_store_si128(R128(&hp_state[j]), _mm_load_si128(c1));\
   p = U64(&hp_state[j]); \
   b[0] = p[0]; b[1] = p[1]; \
-  VARIANT2_PORTABLE_INTEGER_MATH(b, c); \
+  VARIANT2_INTEGER_MATH_SSE2(b, c); \
   __mul(); \
   VARIANT2_2(); \
-  VARIANT2_SHUFFLE_ADD_NEON(hp_state, j); \
+  VARIANT2_SHUFFLE_ADD_SSE2(hp_state, j); \
   a[0] += hi; a[1] += lo; \
   p = U64(&hp_state[j]); \
   p[0] = a[0];  p[1] = a[1]; \
@@ -1054,6 +1070,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
   RDATA_ALIGN16 uint64_t a[2];
   RDATA_ALIGN16 uint64_t b[4];
   RDATA_ALIGN16 uint64_t c[2];
+  RDATA_ALIGN16 uint64_t c1[2];
   union cn_slow_hash_state state;
   uint8x16_t _a, _b, _b1, _c, zero = {0};
   uint64_t hi, lo;
@@ -1508,23 +1525,30 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
     b[i] = state.k[AES_BLOCK_SIZE + i] ^ state.k[AES_BLOCK_SIZE * 3 + i];
   }
 
-  for (i = 0; i < aes_rounds; i++) {
-    /* Dependency chain: address -> read value ------+
-     * written value <-+ hard function (AES or MUL) <+
-     * next address  <-+
-     */
-    /* Iteration 1 */
-    j = e2i(a, aes_init);
-    copy_block(c1, &long_state[j]);
-    aesb_single_round(c1, c1, a);
-    VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j);
-    copy_block(&long_state[j], c1);
-    xor_blocks(&long_state[j], b);
-    assert(j == e2i(a, aes_init);
+
+  for (i = 0; i < ITER / 4; i++) {
+    j = e2i(a, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE; //Getting a pointer
+    copy_block(c1, &long_state[j]); //Copying the block the pointer points to accessable cache (c1)
+    copy_block(c2, &long_state[j]); //Copying the block the pointer points to accessable cache (c2)
+    /* Iteration 0 */
+    aesb_single_round(c1, c1, a); //AES of c1 to c1. key: a
+    VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j); //Shuffle
+    copy_block(&long_state[j], c1); // Copying encrypted block back
     VARIANT1_1(&long_state[j]);
+    /* Iteration 1 */
+    j = e2i(c1, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+    xor_blocks(c1, b); //XOR Block with another thing
+    copy_block(&long_state[j], c1);
     /* Iteration 2 */
-    j = e2i(c1, aes_init);
-    copy_block(c2, &long_state[j]);
+    j = e2i(c1, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+    copy_block(&long_state[j], c2); // Copying previous block back to random position
+    xor_blocks(c2, c1); //XORing previous block with current block in pos
+
+    /* Iteration 3 */
+    j = e2i(c2, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+    copy_block(&long_state[j], c2); // Copying XORed block to random pos ([C1 after encryption XOR B] XOR C1 before encryption)
+
+    /* Finishing */
     VARIANT2_PORTABLE_INTEGER_MATH(c2, c1);
     mul(c1, c2, d);
     VARIANT2_2_PORTABLE();
@@ -1535,13 +1559,13 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
     xor_blocks(c1, c2);
     VARIANT1_2(c2 + 8);
     copy_block(&long_state[j], c2);
-    assert(j == e2i(a, aes_init);
-    if (variant == 2) {
+    assert(j == e2i(a, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE);
+    if (variant >= 2) {
       copy_block(b + AES_BLOCK_SIZE, b);
     }
     copy_block(b, a);
     copy_block(a, c1);
-  }
+}
 
   memcpy(text, state.init, INIT_SIZE_BYTE);
   oaes_key_import_data(aes_ctx, &state.hs.b[32], AES_KEY_SIZE);
