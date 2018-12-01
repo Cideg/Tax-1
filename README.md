@@ -2,13 +2,6 @@
 
 ## A riskless CryptoNote revolution
 
-
-#### Master Build Status
-[![Build Status](https://travis-ci.org/tax/tax.svg?branch=master)](https://travis-ci.org/tax/tax) [![Build status](https://ci.appveyor.com/api/projects/status/github/tax/tax?branch=master&svg=true)](https://ci.appveyor.com/project/RocksteadyTC/tax)
-
-#### Development Build Status
-[![Build Status](https://travis-ci.org/tax/tax.svg?branch=development)](https://travis-ci.org/tax/tax) [![Build status](https://ci.appveyor.com/api/projects/status/github/tax/tax?branch=development&svg=true)](https://ci.appveyor.com/project/RocksteadyTC/tax)
-
 ### Installing
 
 We offer binary images of the latest releases here: https://latest.tax.lol
