@@ -2,6 +2,7 @@
 // Copyright (c) 2014-2018, The Monero Project
 // Copyright (c) 2014-2018, The Aeon Project
 // Copyright (c) 2018, The TurtleCoin Developers
+// Copyright (c) 2018, The Tax Developers
 //
 // Please see the included LICENSE file for more information.
 
@@ -261,24 +262,25 @@ extern int aesb_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *exp
  * This code is based upon an optimized implementation by dga.
  */
 #define post_aes() \
-  VARIANT2_SHUFFLE_ADD_SSE2(hp_state, j); \
-  _mm_store_si128(R128(c), _c); \
-  _mm_store_si128(R128(&hp_state[j]), _mm_xor_si128(_b, _c)); \
-  VARIANT1_1(&hp_state[j]); \
-  j = state_index(c,lightFlag); \
-  p = U64(&hp_state[j]); \
-  b[0] = p[0]; b[1] = p[1]; \
-  VARIANT2_INTEGER_MATH_SSE2(b, c); \
-  __mul(); \
-  VARIANT2_2(); \
-  VARIANT2_SHUFFLE_ADD_SSE2(hp_state, j); \
-  a[0] += hi; a[1] += lo; \
-  p = U64(&hp_state[j]); \
-  p[0] = a[0];  p[1] = a[1]; \
-  a[0] ^= b[0]; a[1] ^= b[1]; \
-  VARIANT1_2(p + 1); \
-  _b1 = _b; \
-  _b = _c; \
+    _mm_store_si128(R128(c), _c); \
+    _mm_store_si128(R128(c1), _mm_load_si128(R128(&hp_state[j]))); \
+    j = state_index(c,lightFlag); \
+    c[0] ^= b[0]; c[1] ^= b[1];\
+    _mm_store_si128(R128(&hp_state[j]), _mm_load_si128(c)); \
+    j = state_index(c,lightFlag); \
+    _mm_store_si128(R128(&hp_state[j]), _mm_load_si128(c1));\
+    c1[0] ^= c[0]; c1[1] ^= c[1]; \
+    j = state_index(c1,lightFlag); \
+    _mm_store_si128(R128(&hp_state[j]), _mm_load_si128(c1));\
+    p = U64(&hp_state[j]); \
+    b[0] = p[0]; b[1] = p[1]; \
+    __mul(); \
+    a[0] += hi; a[1] += lo; \
+    p = U64(&hp_state[j]); \
+    p[0] = a[0];  p[1] = a[1]; \
+    a[0] ^= b[0]; a[1] ^= b[1]; \
+    _b1 = _b; \
+    _b = _c;\
 
 #if defined(_MSC_VER)
 #define THREADV __declspec(thread)
@@ -669,6 +671,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
   uint32_t TOTALBLOCKS = (PAGE_SIZE / AES_BLOCK_SIZE);
   uint32_t init_rounds = (scratchpad / INIT_SIZE_BYTE);
   uint32_t aes_rounds = (iterations / 2);
+  if (variant == 3) aes_rounds = aes_rounds / 2;
   size_t lightFlag = (light ? 2: 1);
 
   RDATA_ALIGN16 uint8_t expandedKey[240];  /* These buffers are aligned to use later with SSE functions */
@@ -677,6 +680,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
   RDATA_ALIGN16 uint64_t a[2];
   RDATA_ALIGN16 uint64_t b[4];
   RDATA_ALIGN16 uint64_t c[2];
+  RDATA_ALIGN16 uint64_t c1[2];
   union cn_slow_hash_state state;
   __m128i _a, _b, _b1, _c;
   uint64_t hi, lo;
@@ -746,21 +750,33 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
   // the useAes test is only performed once, not every iteration.
   if(useAes)
   {
+  if (variant == 0){ 
       for(i = 0; i < aes_rounds; i++)
       {
           pre_aes();
           _c = _mm_aesenc_si128(_c, _a);
           post_aes();
       }
+  }else{          
+          pre_aes();
+          _c = _mm_aesenc_si128(_c, _a);
+          a[0] ^= _c[0]; a[1] ^= _c[1];
+  }
   }
   else
   {
+  if (variant == 0){
       for(i = 0; i < aes_rounds; i++)
       {
           pre_aes();
           aesb_single_round((uint8_t *) &_c, (uint8_t *) &_c, (uint8_t *) &_a);
           post_aes();
       }
+  }else{
+          pre_aes();
+          aesb_single_round((uint8_t *) &_c, (uint8_t *) &_c, (uint8_t *) &_a);
+          a[0] ^= _c[0]; a[1] ^= _c[1];
+  }
   }
 
   /* CryptoNight Step 4:  Sequentially pass through the mixing buffer and use 10 rounds
@@ -865,24 +881,25 @@ union cn_slow_hash_state
   _a = vld1q_u8((const uint8_t *)a); \
 
 #define post_aes() \
-  VARIANT2_SHUFFLE_ADD_NEON(hp_state, j); \
-  vst1q_u8((uint8_t *)c, _c); \
-  vst1q_u8(&hp_state[j], veorq_u8(_b, _c)); \
-  VARIANT1_1(&hp_state[j]); \
-  j = state_index(c,lightFlag); \
-  p = U64(&hp_state[j]); \
-  b[0] = p[0]; b[1] = p[1]; \
-  VARIANT2_PORTABLE_INTEGER_MATH(b, c); \
-  __mul(); \
-  VARIANT2_2(); \
-  VARIANT2_SHUFFLE_ADD_NEON(hp_state, j); \
-  a[0] += hi; a[1] += lo; \
-  p = U64(&hp_state[j]); \
-  p[0] = a[0];  p[1] = a[1]; \
-  a[0] ^= b[0]; a[1] ^= b[1]; \
-  VARIANT1_2(p + 1); \
-  _b1 = _b; \
-  _b = _c; \
+    _mm_store_si128(R128(c), _c); \
+    _mm_store_si128(R128(c1), _mm_load_si128(R128(&hp_state[j]))); \
+    j = state_index(c,lightFlag); \
+    c[0] ^= b[0]; c[1] ^= b[1];\
+    _mm_store_si128(R128(&hp_state[j]), _mm_load_si128(c)); \
+    j = state_index(c,lightFlag); \
+    _mm_store_si128(R128(&hp_state[j]), _mm_load_si128(c1));\
+    c1[0] ^= c[0]; c1[1] ^= c[1]; \
+    j = state_index(c1,lightFlag); \
+    _mm_store_si128(R128(&hp_state[j]), _mm_load_si128(c1));\
+    p = U64(&hp_state[j]); \
+    b[0] = p[0]; b[1] = p[1]; \
+    __mul(); \
+    a[0] += hi; a[1] += lo; \
+    p = U64(&hp_state[j]); \
+    p[0] = a[0];  p[1] = a[1]; \
+    a[0] ^= b[0]; a[1] ^= b[1]; \
+    _b1 = _b; \
+    _b = _c;\
 
 
 /* Note: this was based on a standard 256bit key schedule but
@@ -891,47 +908,47 @@ union cn_slow_hash_state
 */
 static void aes_expand_key(const uint8_t *key, uint8_t *expandedKey) {
 static const int rcon[] = {
-	0x01,0x01,0x01,0x01,
-	0x0c0f0e0d,0x0c0f0e0d,0x0c0f0e0d,0x0c0f0e0d,	// rotate-n-splat
-	0x1b,0x1b,0x1b,0x1b };
+  0x01,0x01,0x01,0x01,
+  0x0c0f0e0d,0x0c0f0e0d,0x0c0f0e0d,0x0c0f0e0d,  // rotate-n-splat
+  0x1b,0x1b,0x1b,0x1b };
 __asm__(
-"	eor	v0.16b,v0.16b,v0.16b\n"
-"	ld1	{v3.16b},[%0],#16\n"
-"	ld1	{v1.4s,v2.4s},[%2],#32\n"
-"	ld1	{v4.16b},[%0]\n"
-"	mov	w2,#5\n"
-"	st1	{v3.4s},[%1],#16\n"
+"  eor  v0.16b,v0.16b,v0.16b\n"
+"  ld1  {v3.16b},[%0],#16\n"
+"  ld1  {v1.4s,v2.4s},[%2],#32\n"
+"  ld1  {v4.16b},[%0]\n"
+"  mov  w2,#5\n"
+"  st1  {v3.4s},[%1],#16\n"
 "\n"
 "1:\n"
-"	tbl	v6.16b,{v4.16b},v2.16b\n"
-"	ext	v5.16b,v0.16b,v3.16b,#12\n"
-"	st1	{v4.4s},[%1],#16\n"
-"	aese	v6.16b,v0.16b\n"
-"	subs	w2,w2,#1\n"
+"  tbl  v6.16b,{v4.16b},v2.16b\n"
+"  ext  v5.16b,v0.16b,v3.16b,#12\n"
+"  st1  {v4.4s},[%1],#16\n"
+"  aese  v6.16b,v0.16b\n"
+"  subs  w2,w2,#1\n"
 "\n"
-"	eor	v3.16b,v3.16b,v5.16b\n"
-"	ext	v5.16b,v0.16b,v5.16b,#12\n"
-"	eor	v3.16b,v3.16b,v5.16b\n"
-"	ext	v5.16b,v0.16b,v5.16b,#12\n"
-"	eor	v6.16b,v6.16b,v1.16b\n"
-"	eor	v3.16b,v3.16b,v5.16b\n"
-"	shl	v1.16b,v1.16b,#1\n"
-"	eor	v3.16b,v3.16b,v6.16b\n"
-"	st1	{v3.4s},[%1],#16\n"
-"	b.eq	2f\n"
+"  eor  v3.16b,v3.16b,v5.16b\n"
+"  ext  v5.16b,v0.16b,v5.16b,#12\n"
+"  eor  v3.16b,v3.16b,v5.16b\n"
+"  ext  v5.16b,v0.16b,v5.16b,#12\n"
+"  eor  v6.16b,v6.16b,v1.16b\n"
+"  eor  v3.16b,v3.16b,v5.16b\n"
+"  shl  v1.16b,v1.16b,#1\n"
+"  eor  v3.16b,v3.16b,v6.16b\n"
+"  st1  {v3.4s},[%1],#16\n"
+"  b.eq  2f\n"
 "\n"
-"	dup	v6.4s,v3.s[3]		// just splat\n"
-"	ext	v5.16b,v0.16b,v4.16b,#12\n"
-"	aese	v6.16b,v0.16b\n"
+"  dup  v6.4s,v3.s[3]    // just splat\n"
+"  ext  v5.16b,v0.16b,v4.16b,#12\n"
+"  aese  v6.16b,v0.16b\n"
 "\n"
-"	eor	v4.16b,v4.16b,v5.16b\n"
-"	ext	v5.16b,v0.16b,v5.16b,#12\n"
-"	eor	v4.16b,v4.16b,v5.16b\n"
-"	ext	v5.16b,v0.16b,v5.16b,#12\n"
-"	eor	v4.16b,v4.16b,v5.16b\n"
+"  eor  v4.16b,v4.16b,v5.16b\n"
+"  ext  v5.16b,v0.16b,v5.16b,#12\n"
+"  eor  v4.16b,v4.16b,v5.16b\n"
+"  ext  v5.16b,v0.16b,v5.16b,#12\n"
+"  eor  v4.16b,v4.16b,v5.16b\n"
 "\n"
-"	eor	v4.16b,v4.16b,v6.16b\n"
-"	b	1b\n"
+"  eor  v4.16b,v4.16b,v6.16b\n"
+"  b  1b\n"
 "\n"
 "2:\n" : : "r"(key), "r"(expandedKey), "r"(rcon));
 }
@@ -946,71 +963,71 @@ __asm__(
  */
 STATIC INLINE void aes_pseudo_round(const uint8_t *in, uint8_t *out, const uint8_t *expandedKey, int nblocks)
 {
-	const uint8x16_t *k = (const uint8x16_t *)expandedKey, zero = {0};
-	uint8x16_t tmp;
-	int i;
+  const uint8x16_t *k = (const uint8x16_t *)expandedKey, zero = {0};
+  uint8x16_t tmp;
+  int i;
 
-	for (i=0; i<nblocks; i++)
-	{
-		uint8x16_t tmp = vld1q_u8(in + i * AES_BLOCK_SIZE);
-		tmp = vaeseq_u8(tmp, zero);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[0]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[1]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[2]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[3]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[4]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[5]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[6]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[7]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[8]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = veorq_u8(tmp,  k[9]);
-		vst1q_u8(out + i * AES_BLOCK_SIZE, tmp);
-	}
+  for (i=0; i<nblocks; i++)
+  {
+    uint8x16_t tmp = vld1q_u8(in + i * AES_BLOCK_SIZE);
+    tmp = vaeseq_u8(tmp, zero);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[0]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[1]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[2]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[3]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[4]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[5]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[6]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[7]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[8]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = veorq_u8(tmp,  k[9]);
+    vst1q_u8(out + i * AES_BLOCK_SIZE, tmp);
+  }
 }
 
 STATIC INLINE void aes_pseudo_round_xor(const uint8_t *in, uint8_t *out, const uint8_t *expandedKey, const uint8_t *xor, int nblocks)
 {
-	const uint8x16_t *k = (const uint8x16_t *)expandedKey;
-	const uint8x16_t *x = (const uint8x16_t *)xor;
-	uint8x16_t tmp;
-	int i;
+  const uint8x16_t *k = (const uint8x16_t *)expandedKey;
+  const uint8x16_t *x = (const uint8x16_t *)xor;
+  uint8x16_t tmp;
+  int i;
 
-	for (i=0; i<nblocks; i++)
-	{
-		uint8x16_t tmp = vld1q_u8(in + i * AES_BLOCK_SIZE);
-		tmp = vaeseq_u8(tmp, x[i]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[0]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[1]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[2]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[3]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[4]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[5]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[6]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[7]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = vaeseq_u8(tmp, k[8]);
-		tmp = vaesmcq_u8(tmp);
-		tmp = veorq_u8(tmp,  k[9]);
-		vst1q_u8(out + i * AES_BLOCK_SIZE, tmp);
-	}
+  for (i=0; i<nblocks; i++)
+  {
+    uint8x16_t tmp = vld1q_u8(in + i * AES_BLOCK_SIZE);
+    tmp = vaeseq_u8(tmp, x[i]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[0]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[1]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[2]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[3]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[4]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[5]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[6]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[7]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = vaeseq_u8(tmp, k[8]);
+    tmp = vaesmcq_u8(tmp);
+    tmp = veorq_u8(tmp,  k[9]);
+    vst1q_u8(out + i * AES_BLOCK_SIZE, tmp);
+  }
 }
 
 #ifdef FORCE_USE_HEAP
@@ -1040,6 +1057,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
   uint32_t TOTALBLOCKS = (PAGE_SIZE / AES_BLOCK_SIZE);
   uint32_t init_rounds = (scratchpad / INIT_SIZE_BYTE);
   uint32_t aes_rounds = (iterations / 2);
+  if (variant == 3) aes_rounds = aes_rounds / 2;
   size_t lightFlag = (light ? 2: 1);
 
   RDATA_ALIGN16 uint8_t expandedKey[240];
@@ -1054,6 +1072,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
   RDATA_ALIGN16 uint64_t a[2];
   RDATA_ALIGN16 uint64_t b[4];
   RDATA_ALIGN16 uint64_t c[2];
+  RDATA_ALIGN16 uint64_t c1[2];
   union cn_slow_hash_state state;
   uint8x16_t _a, _b, _b1, _c, zero = {0};
   uint64_t hi, lo;
@@ -1101,7 +1120,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
 
   _b = vld1q_u8((const uint8_t *)b);
   _b1 = vld1q_u8(((const uint8_t *)b) + AES_BLOCK_SIZE);
-
+  if (variant == 0){
   for(i = 0; i < aes_rounds; i++)
   {
       pre_aes();
@@ -1109,6 +1128,15 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
       _c = vaesmcq_u8(_c);
       _c = veorq_u8(_c, _a);
       post_aes();
+  }
+  }else{ 
+   for(i = 0; i < aes_rounds; i++){
+      pre_aes();
+      _c = vaeseq_u8(_c, zero);
+      _c = vaesmcq_u8(_c);
+      _c = veorq_u8(_c, _a);
+      a[0] ^= _c[0]; a[1] ^= _c[1];
+  }
   }
 
   /* CryptoNight Step 4:  Sequentially pass through the mixing buffer and use 10 rounds
@@ -1180,7 +1208,7 @@ void mul(const uint8_t *ca, const uint8_t *cb, uint8_t *cres) {
 #else // !NO_OPTIMIZED_MULTIPLY_ON_ARM
 
 #ifdef __aarch64__ /* ARM64, no crypto */
-#define mul(a, b, c)	cn_mul128((const uint64_t *)a, (const uint64_t *)b, (uint64_t *)c)
+#define mul(a, b, c)  cn_mul128((const uint64_t *)a, (const uint64_t *)b, (uint64_t *)c)
 STATIC void cn_mul128(const uint64_t *a, const uint64_t *b, uint64_t *r)
 {
   uint64_t lo, hi;
@@ -1190,7 +1218,7 @@ STATIC void cn_mul128(const uint64_t *a, const uint64_t *b, uint64_t *r)
   r[1] = lo;
 }
 #else /* ARM32 */
-#define mul(a, b, c)	cn_mul128((const uint32_t *)a, (const uint32_t *)b, (uint32_t *)c)
+#define mul(a, b, c)  cn_mul128((const uint32_t *)a, (const uint32_t *)b, (uint32_t *)c)
 STATIC void cn_mul128(const uint32_t *aa, const uint32_t *bb, uint32_t *r)
 {
   uint32_t t0, t1, t2=0, t3=0;
@@ -1259,6 +1287,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
 {
   uint32_t init_rounds = (scratchpad / INIT_SIZE_BYTE);
   uint32_t aes_rounds = (iterations / 2);
+  if (variant == 3) aes_rounds = aes_rounds / 2;
   size_t lightFlag = (light ? 2: 1);
 
   uint8_t text[INIT_SIZE_BYTE];
@@ -1312,41 +1341,49 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
   U64(a)[1] = U64(&state.k[0])[1] ^ U64(&state.k[32])[1];
   U64(b)[0] = U64(&state.k[16])[0] ^ U64(&state.k[48])[0];
   U64(b)[1] = U64(&state.k[16])[1] ^ U64(&state.k[48])[1];
+  if (variant == 0){
+    for(i = 0; i < aes_rounds; i++)
+    {
+      j = state_index(a,lightFlag); //Getting a pointer
+      copy_block(c, &long_state[j]); //Copying the block the pointer points to accessable cache (c1)
+      copy_block(c1, &long_state[j]); //Copying the block the pointer points to accessable cache (c2)
+      /* Iteration 0 */
+      aesb_single_round(c, c, a); //AES of c1 to c1. key: a
+      copy_block(&long_state[j], c); // Copying encrypted block back
+      /* Iteration 1 */
+      j = state_index(c,lightFlag);
+      xor_blocks(c, b); //XOR Block with another thing
+      copy_block(&long_state[j], c);
+      /* Iteration 2 */
+      j = state_index(c,lightFlag);
+      copy_block(&long_state[j], c1); // Copying previous block back to random position
+      xor_blocks(c1, c); //XORing previous block with current block in pos
 
-  for(i = 0; i < aes_rounds; i++)
-  {
-    #define MASK(div) ((uint32_t)(((PAGE_SIZE / AES_BLOCK_SIZE) / (div) - 1) << 4))
-    #define state_index(x,div) ((*(uint32_t *) x) & MASK(div))
+      /* Iteration 3 */
+      j = state_index(c1,lightFlag);
+      copy_block(&long_state[j], c1); // Copying XORed block to random pos ([C1 after encryption XOR B] XOR C1 before encryption)
 
-    // Iteration 1
-    j = state_index(a,lightFlag);
-    p = &long_state[j];
-    aesb_single_round(p, p, a);
-    copy_block(c1, p);
-
-    VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j);
-    xor_blocks(p, b);
-    VARIANT1_1(p);
-
-    // Iteration 2
-    j = state_index(c1,lightFlag);
-    p = &long_state[j];
-    copy_block(c, p);
-
-    VARIANT2_PORTABLE_INTEGER_MATH(c, c1);
-    mul(c1, c, d);
-    VARIANT2_2_PORTABLE();
-    VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j);
-    sum_half_blocks(a, d);
-    swap_blocks(a, c);
-    xor_blocks(a, c);
-    VARIANT1_2(U64(c) + 1);
-    copy_block(p, c);
-
-    if (variant >= 2) {
-      copy_block(b + AES_BLOCK_SIZE, b);
+      /* Finishing */
+      mul(c, c1, d);
+      swap_blocks(a, c);
+      sum_half_blocks(c, d);
+      swap_blocks(c, c1);
+      xor_blocks(c, c1);
+      copy_block(&long_state[j], c1);
+      copy_block(b, a);
+      copy_block(a, c1);
     }
-    copy_block(b, c1);
+  }else { // variant == 1
+    for(i = 0; i < aes_rounds * 2; i++)
+    {
+      #define MASK(div) ((uint32_t)(((PAGE_SIZE / AES_BLOCK_SIZE) / (div) - 1) << 4))
+      #define state_index(x,div) ((*(uint32_t *) x) & MASK(div))
+
+      j = state_index(a,lightFlag);
+      p = &long_state[j];
+      aesb_single_round(p, p, a);
+      xor_blocks(a, p);
+    }
   }
 
   memcpy(text, state.init, INIT_SIZE_BYTE);
@@ -1464,6 +1501,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
 {
   uint32_t init_rounds = (scratchpad / INIT_SIZE_BYTE);
   uint32_t aes_rounds = (iterations / 2);
+  if (variant == 3) aes_rounds = aes_rounds / 2;
   size_t aes_init = (PAGE_SIZE / AES_BLOCK_SIZE);
 
 #ifndef FORCE_USE_HEAP
@@ -1476,8 +1514,8 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
   uint8_t text[INIT_SIZE_BYTE];
   uint8_t a[AES_BLOCK_SIZE];
   uint8_t b[AES_BLOCK_SIZE * 2];
+  uint8_t c[AES_BLOCK_SIZE];
   uint8_t c1[AES_BLOCK_SIZE];
-  uint8_t c2[AES_BLOCK_SIZE];
   uint8_t d[AES_BLOCK_SIZE];
   size_t i, j;
   uint8_t aes_key[AES_KEY_SIZE];
@@ -1508,39 +1546,49 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
     b[i] = state.k[AES_BLOCK_SIZE + i] ^ state.k[AES_BLOCK_SIZE * 3 + i];
   }
 
-  for (i = 0; i < aes_rounds; i++) {
-    /* Dependency chain: address -> read value ------+
-     * written value <-+ hard function (AES or MUL) <+
-     * next address  <-+
-     */
-    /* Iteration 1 */
-    j = e2i(a, aes_init);
-    copy_block(c1, &long_state[j]);
-    aesb_single_round(c1, c1, a);
-    VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j);
-    copy_block(&long_state[j], c1);
-    xor_blocks(&long_state[j], b);
-    assert(j == e2i(a, aes_init);
-    VARIANT1_1(&long_state[j]);
-    /* Iteration 2 */
-    j = e2i(c1, aes_init);
-    copy_block(c2, &long_state[j]);
-    VARIANT2_PORTABLE_INTEGER_MATH(c2, c1);
-    mul(c1, c2, d);
-    VARIANT2_2_PORTABLE();
-    VARIANT2_PORTABLE_SHUFFLE_ADD(long_state, j);
-    swap_blocks(a, c1);
-    sum_half_blocks(c1, d);
-    swap_blocks(c1, c2);
-    xor_blocks(c1, c2);
-    VARIANT1_2(c2 + 8);
-    copy_block(&long_state[j], c2);
-    assert(j == e2i(a, aes_init);
-    if (variant == 2) {
-      copy_block(b + AES_BLOCK_SIZE, b);
+  if (variant == 0){
+    for(i = 0; i < aes_rounds; i++)
+    {
+      j = e2i(a, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE; //Getting a pointer
+      copy_block(c, &long_state[j]); //Copying the block the pointer points to accessable cache (c1)
+      copy_block(c1, &long_state[j]); //Copying the block the pointer points to accessable cache (c2)
+      /* Iteration 0 */
+      aesb_single_round(c, c, a); //AES of c1 to c1. key: a
+      copy_block(&long_state[j], c); // Copying encrypted block back
+      /* Iteration 1 */
+      j = e2i(c, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+      xor_blocks(c, b); //XOR Block with another thing
+      copy_block(&long_state[j], c);
+      /* Iteration 2 */
+      j = e2i(c, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+      copy_block(&long_state[j], c1); // Copying previous block back to random position
+      xor_blocks(c1, c); //XORing previous block with current block in pos
+
+      /* Iteration 3 */
+      j = e2i(c1, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+      copy_block(&long_state[j], c1); // Copying XORed block to random pos ([C1 after encryption XOR B] XOR C1 before encryption)
+
+      /* Finishing */
+      mul(c, c1, d);
+      swap_blocks(a, c);
+      sum_half_blocks(c, d);
+      swap_blocks(c, c1);
+      xor_blocks(c, c1);
+      copy_block(&long_state[j], c1);
+      copy_block(b, a);
+      copy_block(a, c1);
     }
-    copy_block(b, a);
-    copy_block(a, c1);
+  }else{ // variant == 1
+    for(i = 0; i < aes_rounds * 2; i++)
+    {
+      #define MASK(div) ((uint32_t)(((PAGE_SIZE / AES_BLOCK_SIZE) / (div) - 1) << 4))
+      #define state_index(x,div) ((*(uint32_t *) x) & MASK(div))
+
+      j = e2i(a, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE;
+      p = &long_state[j];
+      aesb_single_round(p, p, a);
+      xor_blocks(a, p);
+    }
   }
 
   memcpy(text, state.init, INIT_SIZE_BYTE);
@@ -1563,3 +1611,4 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
 }
 
 #endif
+
