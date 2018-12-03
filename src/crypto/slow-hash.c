@@ -750,33 +750,37 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
   // the useAes test is only performed once, not every iteration.
   if(useAes)
   {
-  if (variant == 0){ 
-      for(i = 0; i < aes_rounds; i++)
-      {
-          pre_aes();
-          _c = _mm_aesenc_si128(_c, _a);
-          post_aes();
+    if (variant == 0){ 
+        for(i = 0; i < aes_rounds/2; i++)
+        {
+            pre_aes();
+            _c = _mm_aesenc_si128(_c, _a);
+            post_aes();
+        }
+    }else{    
+      for(i = 0; i < aes_rounds*2; i++)
+      {      
+            pre_aes();
+            _c = _mm_aesenc_si128(_c, _a);
+            a[0] ^= _c[0]; a[1] ^= _c[1];
       }
-  }else{          
-          pre_aes();
-          _c = _mm_aesenc_si128(_c, _a);
-          a[0] ^= _c[0]; a[1] ^= _c[1];
-  }
-  }
-  else
-  {
-  if (variant == 0){
-      for(i = 0; i < aes_rounds; i++)
-      {
-          pre_aes();
-          aesb_single_round((uint8_t *) &_c, (uint8_t *) &_c, (uint8_t *) &_a);
-          post_aes();
-      }
+    }
   }else{
+    if (variant == 0){
+      for(i = 0; i < aes_rounds/2; i++)
+      {
+          pre_aes();
+          aesb_single_round((uint8_t *) &_c, (uint8_t *) &_c, (uint8_t *) &_a);
+          post_aes();
+      }
+    }else{
+      for(i = 0; i < aes_rounds*2; i++)
+      {
           pre_aes();
           aesb_single_round((uint8_t *) &_c, (uint8_t *) &_c, (uint8_t *) &_a);
           a[0] ^= _c[0]; a[1] ^= _c[1];
-  }
+       }
+    }
   }
 
   /* CryptoNight Step 4:  Sequentially pass through the mixing buffer and use 10 rounds
@@ -1121,7 +1125,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
   _b = vld1q_u8((const uint8_t *)b);
   _b1 = vld1q_u8(((const uint8_t *)b) + AES_BLOCK_SIZE);
   if (variant == 0){
-  for(i = 0; i < aes_rounds; i++)
+  for(i = 0; i < aes_rounds/2; i++)
   {
       pre_aes();
       _c = vaeseq_u8(_c, zero);
@@ -1130,7 +1134,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
       post_aes();
   }
   }else{ 
-   for(i = 0; i < aes_rounds; i++){
+   for(i = 0; i < aes_rounds*2; i++){
       pre_aes();
       _c = vaeseq_u8(_c, zero);
       _c = vaesmcq_u8(_c);
@@ -1287,7 +1291,6 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
 {
   uint32_t init_rounds = (scratchpad / INIT_SIZE_BYTE);
   uint32_t aes_rounds = (iterations / 2);
-  if (variant == 3) aes_rounds = aes_rounds / 2;
   size_t lightFlag = (light ? 2: 1);
 
   uint8_t text[INIT_SIZE_BYTE];
@@ -1342,7 +1345,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
   U64(b)[0] = U64(&state.k[16])[0] ^ U64(&state.k[48])[0];
   U64(b)[1] = U64(&state.k[16])[1] ^ U64(&state.k[48])[1];
   if (variant == 0){
-    for(i = 0; i < aes_rounds; i++)
+    for(i = 0; i < aes_rounds/2; i++)
     {
       j = state_index(a,lightFlag); //Getting a pointer
       copy_block(c, &long_state[j]); //Copying the block the pointer points to accessable cache (c1)
@@ -1547,7 +1550,7 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
   }
 
   if (variant == 0){
-    for(i = 0; i < aes_rounds; i++)
+    for(i = 0; i < aes_rounds/2; i++)
     {
       j = e2i(a, MEMORY / AES_BLOCK_SIZE) * AES_BLOCK_SIZE; //Getting a pointer
       copy_block(c, &long_state[j]); //Copying the block the pointer points to accessable cache (c1)
