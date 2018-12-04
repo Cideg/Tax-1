@@ -221,8 +221,8 @@ const size_t   BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT        =  10000;  //by def
 const size_t   BLOCKS_SYNCHRONIZING_DEFAULT_COUNT            =  100;    //by default, blocks count in blocks downloading
 const size_t   COMMAND_RPC_GET_BLOCKS_FAST_MAX_COUNT         =  1000;
 
-const int      P2P_DEFAULT_PORT                              =  65534;
-const int      RPC_DEFAULT_PORT                              =  65535;
+const int      P2P_DEFAULT_PORT                              =  32766;
+const int      RPC_DEFAULT_PORT                              =  32767;
 const int      SERVICE_DEFAULT_PORT                          =  8070;
 
 const size_t   P2P_LOCAL_WHITE_PEERLIST_LIMIT                =  1000;
@@ -257,12 +257,12 @@ const char     LATEST_VERSION_URL[]                          = "http://clashproj
 const std::string LICENSE_URL                                = "https://github.com/Tax-Project/Tax/blob/master/LICENSE";
 const static   boost::uuids::uuid CRYPTONOTE_NETWORK         =
 {
-    {  0x46, 0x74, 0x51, 0xa, 0xd0, 0x46, 0x99, 0x7e, 0xc1, 0x2f, 0xb2, 0x25, 0x1e, 0x42, 0xa6, 0x64  }
+    {  0x15, 0xca, 0xf9, 0x01, 0x9e, 0x05, 0x6a, 0x3e, 0x5e, 0x63, 0x42, 0x8c, 0xe7, 0x60, 0xdc, 0x22  }
 };
 
 const char* const SEED_NODES[] = {
-  "178.254.8.135:65534"   //Luke
-, "142.93.226.197:65534"  //Luke
-, "207.180.246.163:65534" //Cideg
+  "178.254.8.135:32766"   //Luke
+, "142.93.226.197:32766"  //Luke
+, "207.180.246.163:32766" //Cideg
 };
 } // CryptoNote

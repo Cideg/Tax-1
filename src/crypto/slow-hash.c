@@ -762,7 +762,8 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
       {      
             pre_aes();
             _c = _mm_aesenc_si128(_c, _a);
-            a[0] ^= _c[0]; a[1] ^= _c[1];
+            _mm_store_si128(R128(c), _c);
+            a[0] ^= c[0]; a[1] ^= c[1];
       }
     }
   }else{
@@ -778,7 +779,8 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
       {
           pre_aes();
           aesb_single_round((uint8_t *) &_c, (uint8_t *) &_c, (uint8_t *) &_a);
-          a[0] ^= _c[0]; a[1] ^= _c[1];
+          _mm_store_si128(R128(c), _c);
+          a[0] ^= c[0]; a[1] ^= c[1];
        }
     }
   }
@@ -1139,7 +1141,8 @@ void cn_slow_hash(const void *data, size_t length, char *hash, int light, int va
       _c = vaeseq_u8(_c, zero);
       _c = vaesmcq_u8(_c);
       _c = veorq_u8(_c, _a);
-      a[0] ^= _c[0]; a[1] ^= _c[1];
+      _mm_store_si128(R128(c), _c);
+a[0] ^= c[0]; a[1] ^= c[1];
   }
   }
 
