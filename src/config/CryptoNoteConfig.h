@@ -92,14 +92,14 @@ const uint64_t MINIMUM_FEE                                   = UINT64_C(1000000)
 const uint64_t MINIMUM_MIXIN_V1                              = 15;
 const uint64_t MAXIMUM_MIXIN_V1                              = 24;
 
-const uint64_t MINIMUM_MIXIN_V2                              = 19;
-const uint64_t MAXIMUM_MIXIN_V2                              = 24;
+const uint64_t MINIMUM_MIXIN_V2                              = 1;
+const uint64_t MAXIMUM_MIXIN_V2                              = 3; //Some scalability issues got fixed by reducing the ring size (TX size / 10) 
 
-const uint64_t MINIMUM_MIXIN_V3                              = 23;
-const uint64_t MAXIMUM_MIXIN_V3                              = 24;
+const uint64_t MINIMUM_MIXIN_V3                              = 2;
+const uint64_t MAXIMUM_MIXIN_V3                              = 3;
 
 /* The heights to activate the mixin limits at */
-const uint32_t MIXIN_LIMITS_V1_HEIGHT                        = 12600;
+const uint32_t MIXIN_LIMITS_V1_HEIGHT                        = 5040;
 const uint32_t MIXIN_LIMITS_V2_HEIGHT                        = 25200;
 const uint32_t MIXIN_LIMITS_V3_HEIGHT                        = 50400;
 
