@@ -151,7 +151,7 @@ const uint32_t KEY_IMAGE_CHECKING_BLOCK_INDEX                = 0;
 
 const uint32_t UPGRADE_HEIGHT_V2                             = 1;
 const uint32_t UPGRADE_HEIGHT_V3                             = 2;
-const uint32_t UPGRADE_HEIGHT_V4                             = 350000; // Upgrade height for CN-Lite Variant 1 switch.010301ff000198b3e6cc99b3e6cc19025829dd175752ba9a445d2760b4793794211c94453bc58a2aed03d5596115fd15210135e7845d4ca441deeca32511a50e24b266b7b7b82e4a080d574e8578acade51a
+const uint32_t UPGRADE_HEIGHT_V4                             = 2048; // Upgrade height for CN-Lite Variant 1 switch.010301ff000198b3e6cc99b3e6cc19025829dd175752ba9a445d2760b4793794211c94453bc58a2aed03d5596115fd15210135e7845d4ca441deeca32511a50e24b266b7b7b82e4a080d574e8578acade51a
 const uint32_t UPGRADE_HEIGHT_CURRENT                        = UPGRADE_HEIGHT_V4;
 
 const unsigned UPGRADE_VOTING_THRESHOLD                      = 90;               // percent

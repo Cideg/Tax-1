@@ -73,15 +73,15 @@ namespace Crypto {
 
   // Standard CryptoNight Lite
   inline void cn_lite_slow_hash_v0(const void *data, size_t length, Hash &hash) {
-    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), 0, 0, 0, CN_LITE_PAGE_SIZE, CN_LITE_SCRATCHPAD, CN_LITE_ITERATIONS);
+    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), 0, 0, 0, CN_LITE_PAGE_SIZE, CN_LITE_SCRATCHPAD, 0x400000);
   }
 
   inline void cn_lite_slow_hash_v1(const void *data, size_t length, Hash &hash) {
-    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), 1, 0, 0, CN_LITE_PAGE_SIZE, CN_LITE_SCRATCHPAD, CN_LITE_ITERATIONS);
+    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), 1, 0, 0, CN_LITE_PAGE_SIZE, CN_LITE_SCRATCHPAD, 0x400000);
   }
 
   inline void cn_lite_slow_hash_v2(const void *data, size_t length, Hash &hash) {
-    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), 1, 1, 0, CN_LITE_PAGE_SIZE, CN_LITE_SCRATCHPAD, CN_LITE_ITERATIONS);
+    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), 1, 1, 0, CN_LITE_PAGE_SIZE, CN_LITE_SCRATCHPAD, 0x400000);
   }
   
   // CryptoNight Soft Shell
