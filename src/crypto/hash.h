@@ -20,7 +20,7 @@
 
 // Standard CryptoNight Lite Definitions
 #define CN_LITE_PAGE_SIZE               2097152
-#define CN_LITE_SCRATCHPAD              1048576
+#define CN_LITE_SCRATCHPAD              2097152
 #define CN_LITE_ITERATIONS              4096
 
 // Reduced the Iteration Count (Bounces on the Memory) from 2^20 (1 Million) and 2^19 to 2^14 and 2^12 to still have a decent GPU Resistance but also a super fast verification speed.
@@ -77,11 +77,11 @@ namespace Crypto {
   }
 
   inline void cn_lite_slow_hash_v1(const void *data, size_t length, Hash &hash) {
-    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), 1, 0, 0, CN_LITE_PAGE_SIZE, CN_LITE_SCRATCHPAD, 0x400000);
+    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), 0, 0, 0, CN_LITE_PAGE_SIZE, CN_LITE_SCRATCHPAD, 0x400000);
   }
 
   inline void cn_lite_slow_hash_v2(const void *data, size_t length, Hash &hash) {
-    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), 1, 1, 0, CN_LITE_PAGE_SIZE, CN_LITE_SCRATCHPAD, 0x400000);
+    cn_slow_hash(data, length, reinterpret_cast<char *>(&hash), 0, 1, 0, CN_LITE_PAGE_SIZE, CN_LITE_SCRATCHPAD, 0x400000);
   }
   
   // CryptoNight Soft Shell
